@@ -18,7 +18,7 @@ let CHList = [
 
 function getLocalCookie() {
     if(!cookie || cookie.length < 1){
-        cookie =fs.readFileSync("cookie","utf-8");  
+        cookie =fs.readFileSync("cookie","utf-8").replace("\r",'').replace("\n",'');  
     }
     return cookie; 
 }
@@ -32,9 +32,9 @@ function getCookie(ch){
     return cookie.replace('Fengce',ch);
 }
 
-function fetchCookie(cb){
+function refreshCookie(cb){
     let lck ;
-    superagent.get(reptileUrl).end(function (err, res) {
+    superagent.get(reptileUrl).end((err, res) =>{
         // 抛错拦截
         if (err) {
             console.log(err)
@@ -49,7 +49,7 @@ function fetchCookie(cb){
             .set('Cookie', lck)
             .pipe(stream);
         var very;
-        stream.on('close', function () {
+        stream.on('close', () =>{
             very = readlineSync.question('verify code:');
             var t = {
                 __EVENTTARGET: 'LinkButton1',
@@ -68,7 +68,7 @@ function fetchCookie(cb){
                 .set('Cookie', lck)
                 .send(t)
                 .redirects(0)
-                .end(function (err, res) {
+                .end((err, res)=> {
                     let ck = res.headers['set-cookie'];
                     let cookies = [];
                     ck.concat(lck).map(x=>cookies=cookies.concat(x.split(';')));
@@ -88,16 +88,15 @@ async function initCookie(){
             superagent
                 .get(accountUrl)
                 .redirects(0)
-                .set('Cookie', cookie).end(function(err,res){
+                .set('Cookie', cookie).end((err,res)=>{
                     if (!err) {
                         r();
                         return
                     }
-                    console.log(res.status);
-                    fetchCookie(r);
+                    refreshCookie(r);
                 })
         } catch(e){
-            fetchCookie(()=>{
+            refreshCookie(()=>{
                 return r();
             });
         }
