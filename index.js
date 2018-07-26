@@ -8,50 +8,47 @@ let req = superagent;
 const mainUrl = "http://192.168.0.200:83/";
 const reptileUrl = mainUrl+"login.aspx";
 const accountUrl = mainUrl+"AccountsInfo.aspx";
-let cookie;
+let cookie='';
 let areq =fs.readFileSync("areq.txt","utf-8"); 
-// areq = querystring.parse(areq);
 
 let CHList = [
     'H5Ceshi',
 ]
 
+
 function getLocalCookie() {
-    return fs.readFileSync("cookie","utf-8"); 
-}
-
-function readSyn() {
-    process.stdin.pause();
-    var response = fs.readSync(process.stdin.fd, 1000, 0, "utf8");
-    process.stdin.resume();
-    return response[0].trim();
-}
-
-function getCookie(ck,ch){
-        let cookies = [];
-        ck.concat(cookie).map(x=>cookies=cookies.concat(x.split(';')));
-        let cck;
-        cck = cookies.filter(x=>/^[aA]/.test(x)).join(';');
-        return cck.replace('Fengce',ch);
-}
-
-
-superagent.get(reptileUrl).end(function (err, res) {
-    // 抛错拦截
-    if (err) {
-        console.log(err)
-        return
+    if(!cookie || cookie.length < 1){
+        cookie =fs.readFileSync("cookie","utf-8");  
     }
-    // 等待 code
-    let $ = cheerio.load(res.text);
-    cookie = res.headers['set-cookie'];
-    var stream = fs.createWriteStream('v.png');
-    superagent
-        .get(mainUrl+'CreateCode.ashx')
-        .set('Cookie', cookie)
-        .pipe(stream);
-    var very;
-    new Promise((r,j)=>{
+    return cookie; 
+}
+
+function setLocalCookie(str) {
+    cookie = str;
+    return fs.writeFileSync("cookie",str,"utf-8"); 
+}
+
+function getCookie(ch){
+    return cookie.replace('Fengce',ch);
+}
+
+function fetchCookie(cb){
+    let lck ;
+    superagent.get(reptileUrl).end(function (err, res) {
+        // 抛错拦截
+        if (err) {
+            console.log(err)
+            return
+        }
+        // 等待 code
+        let $ = cheerio.load(res.text);
+        lck = res.headers['set-cookie'];
+        var stream = fs.createWriteStream('v.png');
+        superagent
+            .get(mainUrl+'CreateCode.ashx')
+            .set('Cookie', lck)
+            .pipe(stream);
+        var very;
         stream.on('close', function () {
             very = readlineSync.question('verify code:');
             var t = {
@@ -68,26 +65,68 @@ superagent.get(reptileUrl).end(function (err, res) {
             req
                 .post(reptileUrl)
                 .type('form')
-                .set('Cookie', cookie)
+                .set('Cookie', lck)
                 .send(t)
                 .redirects(0)
                 .end(function (err, res) {
                     let ck = res.headers['set-cookie'];
-                    r(ck);
+                    let cookies = [];
+                    ck.concat(lck).map(x=>cookies=cookies.concat(x.split(';')));
+                    let cck;
+                    cck = cookies.filter(x=>/^[aA]/.test(x)).join(';');
+                    setLocalCookie(cck);
+                    cb&&cb();
                 })
         })
-    }).then((ck)=>{
-        var t = querystring.parse(areq);
-        t.TextBoxKeyWords= process.argv[2];
-        let cck = getCookie(ck,'H5Ceshi');
+    });
+}
+
+async function initCookie(){
+    getLocalCookie();
+    return new Promise((r,j)=>{
+        try{
+            superagent
+                .get(accountUrl)
+                .redirects(0)
+                .set('Cookie', cookie).end(function(err,res){
+                    if (!err) {
+                        r();
+                        return
+                    }
+                    console.log(res.status);
+                    fetchCookie(r);
+                })
+        } catch(e){
+            fetchCookie(()=>{
+                return r();
+            });
+        }
+    })
+}
+
+async function getVIP(id){
+    var t = querystring.parse(areq);
+    t.TextBoxKeyWords= id;
+    let cck = getCookie('H5Ceshi');
+    return new Promise((r,j)=>{
         req.post(accountUrl)
             .set('Cookie', cck)
-            // .send(querystring.stringify(t))
             .send(querystring.stringify(t))
             .end((err,res)=>{
-            let $ = cheerio.load(res.text, {decodeEntities: false});
-                // console.log($('#div1').html());
-                console.log($('td',$('tr','#div1').eq(8)).eq(1).html());
+                let $ = cheerio.load(res.text, {decodeEntities: false});
+                let vip = $('td',$('tr','#div1').eq(8)).eq(1).html();
+                console.log(vip);
+                r(vip);
             })
     })
-});
+}
+
+async function init(){
+    await initCookie();
+    await getVIP(236507);
+    await getVIP(236508);
+    await getVIP(236509);
+    await getVIP(236510);
+}
+
+init();
